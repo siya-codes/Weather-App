@@ -28,7 +28,7 @@ const App = () => {
   const fetchSuggestions = async (query) => {
     try {
       const res = await fetch(
-        `http://api.openweathermap.org/geo/1.0/direct?q=${query}&limit=5&appid=${API_KEY}`
+        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${API_KEY}`
       );
       res.ok ? setSuggestion(await res.json()) : setSuggestion([]);
     }
@@ -54,13 +54,36 @@ const App = () => {
     }
   }
 
+  const fetchWeatherByLocation = async (location) => {
+    await fetchWeatherData(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${location.lat}&lon=${location.lon}&appid=${API_KEY}&units=metric`,
+      `${location.name}, ${location.country}${location.state ? `, ${location.state}` : ''}`
+    );
+  }
+
   // THIS FUNCTIONS PREVENTS FORM SUBMISSON VALIDATES CITY AND FETCHES DATA VIA API
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!city.trim()) return setError("Please enter a vaild city name.");
-    await fetchWeatherData(
-      `https://api.openweathermap.org/data/2.5/weather?q=${city.trim()}&appid=${API_KEY}&units=metric`
-    )
+
+    setError('');
+    setWeather(null);
+
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city.trim())}&limit=1&appid=${API_KEY}`
+      );
+      const locations = await response.json();
+
+      if (!response.ok || !locations.length) {
+        throw new Error('City not Found');
+      }
+
+      await fetchWeatherByLocation(locations[0]);
+    }
+    catch (err) {
+      setError(err.message);
+    }
   }
 
   // this function check weather exists and return an object
@@ -71,7 +94,10 @@ const App = () => {
 
   return (
     <div className=' min-h-screen'>
-      <WeatherBackground condition={getWeatherCondition()} />
+      <WeatherBackground
+        condition={getWeatherCondition()}
+        temperature={weather?.main?.temp}
+      />
 
       <div className=' flex items-center justify-center p-6 min-h-screen'>
         <div className=' bg-transparent backdrop-filter backdrop-blur-md rounded-xl shadow-2xl p-8 max-w-md text-white
@@ -89,10 +115,7 @@ const App = () => {
                 <div className=' absolute top-12 left-0 right-0 bg-transparent shadow-md rounded z-10'>
                   {suggestion.map((s) => (
                     <button type='button' key={`${s.lat}-${s.lon}`}
-                      onClick={() => fetchWeatherData(
-                        `https://api.openweathermap.org/data/2.5/weather?lat=${s.lat}&lon=${s.lon}&appid=${API_KEY}&units=metric`,
-                        `${s.name}, ${s.country}${s.state ? `, ${s.state}` : ''}`
-                      )} className=' block hover:bg-blue-700 bg-transparent px-4 py-2 text-sm text-left w-full
+                      onClick={() => fetchWeatherByLocation(s)} className=' block hover:bg-blue-700 bg-transparent px-4 py-2 text-sm text-left w-full
                        transition-colors'>
                       {s.name}, {s.country}{s.state && `, ${s.state}`}
                     </button>
@@ -135,8 +158,8 @@ const App = () => {
                   [HumidityIcon, 'Humidity', `${weather.main.humidity}%
                   (${getHumidityValue(weather.main.humidity)})`],
 
-                  [WindIcon, 'Wind', `${weather.wind.speed} m/s ${weather.wind.deg ?
-                    `(${getWindDirection(weather.main.humidity)})` : ''}`],
+                  [WindIcon, 'Wind', `${weather.wind.speed} m/s ${weather.wind.deg !== undefined ?
+                    `(${getWindDirection(weather.wind.deg)})` : ''}`],
 
                   [VisibilityIcon, 'Visibility', getVisibilityValue(weather.visibility)]
                 ].map(([Icon, label, value]) => (

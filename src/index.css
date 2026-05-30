@@ -1,1 +1,25 @@
 @import "tailwindcss";
+
+.heat-waves {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 28px,
+      rgba(255, 255, 255, 0.12) 30px 34px,
+      transparent 36px 64px
+    );
+  filter: blur(14px);
+  mix-blend-mode: screen;
+  opacity: 0.45;
+  animation: heatMove 3s ease-in-out infinite alternate;
+}
+
+@keyframes heatMove {
+  from {
+    transform: translateX(-18px) skewX(-8deg) scaleY(1.04);
+  }
+
+  to {
+    transform: translateX(18px) skewX(8deg) scaleY(1.08);
+  }
+}

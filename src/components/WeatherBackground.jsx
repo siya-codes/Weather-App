@@ -10,7 +10,7 @@ import CloudsNight from '../assets/CloudsNight.gif';
 import Haze from '../assets/Haze.gif';
 import video from '../assets/video1.mp4'
 
-const WeatherBackground = ({ condition }) => {
+const WeatherBackground = ({ condition, temperature }) => {
     const gifs = {
         Thunderstorm,
         Drizzle: Rain,
@@ -25,7 +25,20 @@ const WeatherBackground = ({ condition }) => {
         default: video
     };
 
+    const getTemperatureBackground = () => {
+        if (temperature === undefined || temperature === null) return null;
+
+        if (temperature <= 5) return SnowDay;
+        if (temperature <= 16) return condition?.isDay ? CloudsDay : CloudsNight;
+        if (temperature <= 28) return condition?.isDay ? ClearDay : ClearNight;
+        if (temperature <= 36) return ClearDay;
+        return Haze;
+    }
+
     const getBackground = () => {
+        const tempBackground = getTemperatureBackground();
+        if (tempBackground) return tempBackground;
+
         if (!condition) return gifs.default;
         const weatherType = condition.main;
         const asset = gifs[weatherType];
@@ -36,6 +49,32 @@ const WeatherBackground = ({ condition }) => {
 
         return asset;
     }
+
+    const getTemperatureTheme = () => {
+        if (temperature === undefined || temperature === null) {
+            return 'from-slate-950/60 via-sky-950/30 to-indigo-950/60';
+        }
+
+        if (temperature <= 5) {
+            return 'from-blue-950/70 via-cyan-900/40 to-slate-950/70';
+        }
+
+        if (temperature <= 16) {
+            return 'from-sky-950/60 via-blue-800/35 to-cyan-950/60';
+        }
+
+        if (temperature <= 28) {
+            return 'from-emerald-900/55 via-sky-800/35 to-teal-950/60';
+        }
+
+        if (temperature <= 36) {
+            return 'from-yellow-700/45 via-orange-600/35 to-sky-900/45';
+        }
+
+        return 'from-red-900/65 via-orange-700/50 to-yellow-600/35';
+    }
+
+    const isHot = temperature > 36;
 
     const background = getBackground();
 
@@ -50,7 +89,11 @@ const WeatherBackground = ({ condition }) => {
                 <img src={background} alt='Weather-bg' className=' w-full h-full object-cover opacity-20 pointer-events-none
                 animate-fade-in' />
             )}
-            <div className=' absolute inset-0 bg-black/30' />
+            <div className={` absolute inset-0 bg-gradient-to-br ${getTemperatureTheme()}`} />
+            {isHot && (
+                <div className=' heat-waves absolute inset-0 pointer-events-none' />
+            )}
+            <div className=' absolute inset-0 bg-black/20' />
         </div>
     )
 
