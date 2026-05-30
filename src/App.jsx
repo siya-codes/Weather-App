@@ -13,6 +13,27 @@ const App = () => {
 
   const API_KEY = 'b6b57edf9063e1dc5da2269ff618796a'
 
+  const regionalLocations = {
+    'tamil nadu': {
+      name: 'Tamil Nadu',
+      country: 'IN',
+      lat: 11.1271,
+      lon: 78.6569,
+    },
+    tamilnadu: {
+      name: 'Tamil Nadu',
+      country: 'IN',
+      lat: 11.1271,
+      lon: 78.6569,
+    },
+    tn: {
+      name: 'Tamil Nadu',
+      country: 'IN',
+      lat: 11.1271,
+      lon: 78.6569,
+    },
+  }
+
   // https://api.openweathermap.org/data/2.5/weather?lat=${s.lat}&lon=${s.lon}&appid={API_KEY}&units=metric
   // http://api.openweathermap.org/geo/1.0/direct?q={query}&limit=5&appid={API_KEY}
 
@@ -27,6 +48,13 @@ const App = () => {
   // FETCHES 5 LOCATIONS SUGGESTIONS FROM API AND UPDATES
   const fetchSuggestions = async (query) => {
     try {
+      const regionalLocation = regionalLocations[query.trim().toLowerCase()];
+
+      if (regionalLocation) {
+        setSuggestion([regionalLocation]);
+        return;
+      }
+
       const res = await fetch(
         `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${API_KEY}`
       );
@@ -74,6 +102,12 @@ const App = () => {
         `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city.trim())}&limit=1&appid=${API_KEY}`
       );
       const locations = await response.json();
+      const regionalLocation = regionalLocations[city.trim().toLowerCase()];
+
+      if (regionalLocation) {
+        await fetchWeatherByLocation(regionalLocation);
+        return;
+      }
 
       if (!response.ok || !locations.length) {
         throw new Error('City not Found');
