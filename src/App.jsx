@@ -13,29 +13,87 @@ const App = () => {
 
   const API_KEY = 'b6b57edf9063e1dc5da2269ff618796a'
 
-  const regionalLocations = {
-    'tamil nadu': {
-      name: 'Tamil Nadu',
-      country: 'IN',
-      lat: 11.1271,
-      lon: 78.6569,
-    },
-    tamilnadu: {
-      name: 'Tamil Nadu',
-      country: 'IN',
-      lat: 11.1271,
-      lon: 78.6569,
-    },
-    tn: {
-      name: 'Tamil Nadu',
-      country: 'IN',
-      lat: 11.1271,
-      lon: 78.6569,
-    },
-  }
-
   // https://api.openweathermap.org/data/2.5/weather?lat=${s.lat}&lon=${s.lon}&appid={API_KEY}&units=metric
   // http://api.openweathermap.org/geo/1.0/direct?q={query}&limit=5&appid={API_KEY}
+
+  const formatLocationName = (location) => {
+    if (location.displayName) return location.displayName;
+
+    return [
+      location.name,
+      location.state,
+      location.country,
+    ].filter(Boolean).join(', ');
+  }
+
+  const normalizeOpenWeatherLocation = (location) => ({
+    name: location.name,
+    state: location.state,
+    country: location.country,
+    lat: location.lat,
+    lon: location.lon,
+    displayName: [location.name, location.state, location.country].filter(Boolean).join(', '),
+  })
+
+  const normalizeNominatimLocation = (location) => {
+    const address = location.address || {};
+    const name = location.name || address.city || address.town || address.village || address.state || address.country;
+
+    return {
+      name,
+      state: address.state,
+      country: address.country_code?.toUpperCase() || address.country,
+      lat: Number(location.lat),
+      lon: Number(location.lon),
+      displayName: location.display_name,
+    }
+  }
+
+  const removeDuplicateLocations = (locations) => {
+    const seen = new Set();
+
+    return locations.filter((location) => {
+      const key = `${location.lat.toFixed(3)}-${location.lon.toFixed(3)}-${location.name}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  const fetchOpenWeatherLocations = async (query, limit = 5) => {
+    const response = await fetch(
+      `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=${limit}&appid=${API_KEY}`
+    );
+
+    if (!response.ok) return [];
+
+    const locations = await response.json();
+    return locations.map(normalizeOpenWeatherLocation);
+  }
+
+  const fetchNominatimLocations = async (query, limit = 5) => {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=${limit}&q=${encodeURIComponent(query)}`
+    );
+
+    if (!response.ok) return [];
+
+    const locations = await response.json();
+    return locations.map(normalizeNominatimLocation).filter((location) => (
+      location.name && Number.isFinite(location.lat) && Number.isFinite(location.lon)
+    ));
+  }
+
+  const searchLocations = async (query, limit = 5) => {
+    const openWeatherLocations = await fetchOpenWeatherLocations(query, limit);
+
+    if (openWeatherLocations.length >= limit) {
+      return openWeatherLocations;
+    }
+
+    const nominatimLocations = await fetchNominatimLocations(query, limit);
+    return removeDuplicateLocations([...openWeatherLocations, ...nominatimLocations]).slice(0, limit);
+  }
 
   useEffect(() => {
     if (city.trim().length >= 3 && !weather) {
@@ -48,17 +106,7 @@ const App = () => {
   // FETCHES 5 LOCATIONS SUGGESTIONS FROM API AND UPDATES
   const fetchSuggestions = async (query) => {
     try {
-      const regionalLocation = regionalLocations[query.trim().toLowerCase()];
-
-      if (regionalLocation) {
-        setSuggestion([regionalLocation]);
-        return;
-      }
-
-      const res = await fetch(
-        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${API_KEY}`
-      );
-      res.ok ? setSuggestion(await res.json()) : setSuggestion([]);
+      setSuggestion(await searchLocations(query));
     }
     catch {
       setSuggestion([]);
@@ -85,7 +133,7 @@ const App = () => {
   const fetchWeatherByLocation = async (location) => {
     await fetchWeatherData(
       `https://api.openweathermap.org/data/2.5/weather?lat=${location.lat}&lon=${location.lon}&appid=${API_KEY}&units=metric`,
-      `${location.name}, ${location.country}${location.state ? `, ${location.state}` : ''}`
+      formatLocationName(location)
     );
   }
 
@@ -98,18 +146,9 @@ const App = () => {
     setWeather(null);
 
     try {
-      const response = await fetch(
-        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city.trim())}&limit=1&appid=${API_KEY}`
-      );
-      const locations = await response.json();
-      const regionalLocation = regionalLocations[city.trim().toLowerCase()];
+      const locations = await searchLocations(city.trim(), 1);
 
-      if (regionalLocation) {
-        await fetchWeatherByLocation(regionalLocation);
-        return;
-      }
-
-      if (!response.ok || !locations.length) {
+      if (!locations.length) {
         throw new Error('City not Found');
       }
 
@@ -151,7 +190,7 @@ const App = () => {
                     <button type='button' key={`${s.lat}-${s.lon}`}
                       onClick={() => fetchWeatherByLocation(s)} className=' block hover:bg-blue-700 bg-transparent px-4 py-2 text-sm text-left w-full
                        transition-colors'>
-                      {s.name}, {s.country}{s.state && `, ${s.state}`}
+                      {formatLocationName(s)}
                     </button>
                   ))}
                 </div>
@@ -198,7 +237,7 @@ const App = () => {
                   [VisibilityIcon, 'Visibility', getVisibilityValue(weather.visibility)]
                 ].map(([Icon, label, value]) => (
                   <div key={label} className=' flex flex-col items-center m-2'>
-                    <Icon />
+                    {React.createElement(Icon)}
                     <p className=' mt-1 font-semibold'>{label}</p>
                     <p className=' text-sm'>{value}</p>
                   </div>
@@ -211,7 +250,7 @@ const App = () => {
                   [SunsetIcon, 'Sunset', weather.sys.sunset]
                 ].map(([Icon, label, time]) => (
                   <div key={label} className=' flex flex-col items-center m-2'>
-                    <Icon />
+                    {React.createElement(Icon)}
                     <p className=' mt-1 font-semibold'>{label}</p>
                     <p className=' text-sm'>
                       {new Date(time * 1000).toLocaleDateString('en-GB',
