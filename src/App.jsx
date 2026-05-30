@@ -33,6 +33,7 @@ const App = () => {
     lat: location.lat,
     lon: location.lon,
     displayName: [location.name, location.state, location.country].filter(Boolean).join(', '),
+    type: 'city',
   })
 
   const normalizeNominatimLocation = (location) => {
@@ -46,8 +47,11 @@ const App = () => {
       lat: Number(location.lat),
       lon: Number(location.lon),
       displayName: location.display_name,
+      type: location.type || location.addresstype || location.category || 'place',
     }
   }
+
+  const getLocationType = (location) => location.type || 'place'
 
   const removeDuplicateLocations = (locations) => {
     const seen = new Set();
@@ -85,13 +89,11 @@ const App = () => {
   }
 
   const searchLocations = async (query, limit = 5) => {
-    const openWeatherLocations = await fetchOpenWeatherLocations(query, limit);
+    const [openWeatherLocations, nominatimLocations] = await Promise.all([
+      fetchOpenWeatherLocations(query, limit),
+      fetchNominatimLocations(query, limit),
+    ]);
 
-    if (openWeatherLocations.length >= limit) {
-      return openWeatherLocations;
-    }
-
-    const nominatimLocations = await fetchNominatimLocations(query, limit);
     return removeDuplicateLocations([...openWeatherLocations, ...nominatimLocations]).slice(0, limit);
   }
 
@@ -106,7 +108,7 @@ const App = () => {
   // FETCHES 5 LOCATIONS SUGGESTIONS FROM API AND UPDATES
   const fetchSuggestions = async (query) => {
     try {
-      setSuggestion(await searchLocations(query));
+      setSuggestion(await searchLocations(query, 8));
     }
     catch {
       setSuggestion([]);
@@ -146,7 +148,7 @@ const App = () => {
     setWeather(null);
 
     try {
-      const locations = await searchLocations(city.trim(), 1);
+      const locations = await searchLocations(city.trim(), 8);
 
       if (!locations.length) {
         throw new Error('City not Found');
@@ -181,7 +183,7 @@ const App = () => {
 
           {!weather ? (
             <form onSubmit={handleSearch} className=' flex flex-col relative'>
-              <input value={city} onChange={(e) => setCity(e.target.value)} placeholder='Enter City or Country (min 3 letters)'
+              <input value={city} onChange={(e) => setCity(e.target.value)} placeholder='Enter City, State or Country (min 3 letters)'
                 className=' mb-4 p-3 rounded border border-white bg-transparent text-white placeholder-white focus:outline-none
                 focus:border-blue-300 transition duration-300' />
               {suggestion.length > 0 && (
@@ -190,7 +192,8 @@ const App = () => {
                     <button type='button' key={`${s.lat}-${s.lon}`}
                       onClick={() => fetchWeatherByLocation(s)} className=' block hover:bg-blue-700 bg-transparent px-4 py-2 text-sm text-left w-full
                        transition-colors'>
-                      {formatLocationName(s)}
+                      <span>{formatLocationName(s)}</span>
+                      <span className=' ml-2 text-xs uppercase text-white/60'>{getLocationType(s)}</span>
                     </button>
                   ))}
                 </div>
